@@ -1,0 +1,1304 @@
+---
+title: "Analisis de Expresion Diferencial Tras Exposicion a contaminacion"
+author: "Laura Pauner"
+date: "5/3/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+```{r}
+library(GEOquery)
+#1. Descarga del conjunto de datos con el que vamos a trabajar
+gse63095<-getGEO('GSE63095', GSEMatrix = TRUE)
+class(gse63095) #lista
+eset_data<-gse63095[[1]] #selecciono el unico elemento de la lista
+eset_data
+```
+
+```{r}
+head(pData(eset_data))
+```
+
+
+
+```{r}
+#2. Control de calidad de los datos crudos: no son datos crudos
+#3. Normalizacion: Los datos ya están normalizados
+#Compruebo que los datos están normalizados:
+set.seed(321)
+sel_genes_azar<-sample(featureNames(eset_data), size = 15) #selecciono 15 genes del eSet al azar
+data.frame(N = seq(length(sel_genes_azar)), ID_genes = sel_genes_azar) #genero un data frame
+
+par(mfrow = c(3,5))
+for( ID in sel_genes_azar ) {
+  hist(exprs(eset_data)[ID, ], main = ID) #genero un histograma con la expresion para cada gen seleccionado
+}
+par(mfrow = c(1,1))
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras_ds1'
+png("./Resultados/ds1/Figuras_ds1/histogramas_expresion_ds1.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+par(mfrow = c(3,5))
+for( ID in sel_genes_azar ) {
+  hist(exprs(eset_data)[ID, ], main = ID)
+}
+dev.off()
+
+
+library("reshape2")
+library(ggplot2)
+
+lauras_boxplot <- function(expre, cond = "type", lims = c(-2, 50)) {
+	dta <- data.frame(melt(exprs(expre)))
+	dta$var <- pData(expre)[as.character(dta$Var2), cond]
+	ggplot(dta, aes(x = Var2, y = value, fill = var)) + 
+		geom_boxplot(outlier.shape = NA) +
+		coord_cartesian(ylim=lims) + 
+		xlab("") + ylab("Expresión") +
+		theme_bw() + 
+		theme(
+			axis.text.x = element_text(angle = 90, hjust = 0, vjust = 0.5)
+		) +
+		scale_fill_discrete(name = "Condición")
+}
+
+lauras_boxplot(eset_data, cond = "air condition:ch1", lims = c(-2.5, 2.5)) + 
+	ggtitle("Boxplot for arrays intensity (ds1)")
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras_ds1'
+png("./Resultados/ds1/Figuras_ds1/boxplot_ds1.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_boxplot(eset_data, cond = "air condition:ch1", lims = c(-2.5, 2.5)) + 
+	ggtitle("Boxplot for arrays intensity (ds1)")
+dev.off()
+
+```
+
+```{r}
+#4. Control de calidad de los datos normalizados
+sum(is.na(exprs(eset_data))) #¿Hay valores perdidos en los datos de expresion?
+na<-do.call(rbind, lapply(seq(nrow(exprs(eset_data))), function(i) {
+  data.frame(i=i, na_sum=sum(is.na(exprs(eset_data)[i, ])))
+}))
+head(na)
+table(na$na_sum)
+
+#Realizamos un analisis de componentes principales
+pca<-prcomp(t(exprs(eset_data)))
+```
+
+
+```{r}
+#Proporcion de varianza que se puede explicar
+prop_var_explicada<- pca$sdev^2 / sum(pca$sdev^2) #calculo la varianza explicada por cada componente
+
+plot(data.frame(pc = 1:48, prop_var_explicada)[1:10, ], 
+     col = "darkorange", 
+     xlab = "Componentes principales",
+     ylab = "Prop. varianza explicada",
+     pch = 19,
+     main = "Varianza explicada (ds1)",
+     type = "b")
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras_ds1'
+png("./Resultados/ds1/Figuras_ds1/prop_var_explicada_ds1.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+plot(data.frame(pc = 1:48, prop_var_explicada)[1:10, ], 
+     col = "darkorange", 
+     xlab = "Componentes principales",
+     ylab = "Prop. varianza explicada",
+     pch = 19,
+     main = "Varianza explicada (ds1)",
+     type = "b")
+dev.off()
+```
+
+```{r}
+#PCA
+df_pc1_pc2<-data.frame(pca$x[ , c(1,2)]) #genero un data frame con los dos primeros PC
+rownames(df_pc1_pc2)<-rownames(pca$x)
+df_pc1_pc2
+
+df_pc1_pc2$classe <- pData(eset_data)[rownames(df_pc1_pc2), "air condition:ch1"]
+
+plot(df_pc1_pc2$PC1, 
+     df_pc1_pc2$PC2,
+     col = ifelse(df_pc1_pc2$classe == "Filtered Air", "green2", "magenta"),
+     pch = 19,
+     main = "Análisis de Componentes Principales (ds1)",
+     xlab = "PC1",
+     ylab = "PC2")
+abline(v = -75, col = "red", lwd = 1)
+
+text(x = -137, y = -15, "GSM1541042", col = "black")
+text(x = -137, y = 155, "GSM1541043", col = "black")
+text(x = -100,  y = -85, "GSM1541051", col = "black")
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras_ds1'
+png("./Resultados/ds1/Figuras_ds1/PCA_ds1.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+plot(df_pc1_pc2$PC1, 
+     df_pc1_pc2$PC2,
+     col = ifelse(df_pc1_pc2$classe == "Filtered Air", "green2", "magenta"),
+     pch = 19,
+     main = "Análisis de Componentes Principales (ds1)",
+     xlab = "PC1",
+     ylab = "PC2")
+abline(v = -75, col = "red", lwd = 1)
+
+text(x = -137, y = -15, "GSM1541042", col = "black")
+text(x = -137, y = 155, "GSM1541043", col = "black")
+text(x = -100,  y = -85, "GSM1541051", col = "black")
+dev.off()
+```
+
+```{r}
+#Identifico los outliers:
+row.names(pca$x)[pca$x[ , 1]< -75 & (pca$x[ , 2] < 200 | pca$x[ , 2] > -50)]
+pData(eset_data)[c("GSM1541042", "GSM1541043", "GSM1541051"), ]$'air condition:ch1'
+```
+
+```{r}
+#Elimino las 3 muestras
+new_eset_data<-eset_data[ , -which(pca$x[ , 1] < -75)] #las 3 muestras comparten el criterio PC1 < -75
+new_eset_data
+```
+
+```{r}
+#5.Detección de los genes más variables
+#Calculo la desviación estándar:
+sds<-apply(new_eset_data, 1, sd)
+
+#Ordeno los genes de mayor a menor SD:
+sds_ordenados<-sort(sds)
+
+#Genero el gráfico
+plot(1:length(sds_ordenados), 
+     sds_ordenados, 
+     main = "Distribution of variability for all genes (ds1)",
+     cex.main = 1.5,
+     col = "darkorchid1", 
+     sub = "Vertical navy-blue line represents 95% percentil", 
+     cex.sub = 0.5,
+     xlab = "Gene index (from least to most variable)", 
+     ylab = "Standard deviation",
+     cex.lab = 1)
+abline(v = length(sds)*0.95, col = "navy", lty = 1, lwd = 2) #percentil 95
+abline(h = 1, col = "red", lty = 2, lwd = 1) #var 1
+abline(v = length(which( sds_ordenados < 1 )), col = "red", lty = 2, lwd = 1) #var 1
+text(x = 1000,  y = 1.10, "sd = 1", col = "red")
+text(x = 27500,  y = 2, "28295 features", col = "red", srt = 90)
+text(x = length(sds)*0.93, "95% percentil", y = 0.65, col = "navy", srt = 90)
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras'
+png("./Resultados/ds1/Figuras_ds1/distribucion_var_ds1.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+plot(1:length(sds_ordenados), 
+     sds_ordenados, 
+     main = "Distribution of variability for all genes (ds1)",
+     cex.main = 1.5,
+     col = "darkorchid1", 
+     sub = "Vertical navy-blue line represents 95% percentil", 
+     cex.sub = 0.5,
+     xlab = "Gene index (from least to most variable)", 
+     ylab = "Standard deviation",
+     cex.lab = 1)
+abline(v = length(sds)*0.95, col = "navy", lty = 1, lwd = 2) #percentil 95
+abline(h = 1, col = "red", lty = 2, lwd = 1) #var 1
+abline(v = length(which( sds_ordenados < 1 )), col = "red", lty = 2, lwd = 1) #var 1
+text(x = 1000,  y = 1.10, "sd = 1", col = "red")
+text(x = 27500,  y = 2, "28295 features", col = "red", srt = 90)
+text(x = length(sds)*0.93, "95% percentil", y = 0.65, col = "navy", srt = 90)
+dev.off()
+```
+
+```{r}
+#6.Filtrado de los genes menos variables
+table(sds < 1) #Con este criterio estaríamos eliminando mas de 28000 genes
+eset_data_filtrado<-new_eset_data[names(sds)[sds >= 1], ] #creo el nuevo ESet
+eset_data_filtrado
+```
+
+```{r}
+#Genero un ESet únicamente con los datos de diesel
+DEE<-eset_data_filtrado[ , pData(eset_data_filtrado)$'air condition:ch1' == "Diesel Engine Exhaust"]
+DEE
+```
+
+```{r}
+#Genero los tres conjuntos de datos con los que vamos a trabajar segun condiciones a comparar (0 vs 2, 0 vs 24, 2 vs 24)
+
+#No expuestos vs recién expuestos
+DEE_0_vs_2<-DEE[ , DEE$`characteristics_ch1.2` != "time (hours): 24"]
+
+#No expuestos vs expuestos tras 24h
+DEE_0_vs_24<-DEE[ , DEE$`characteristics_ch1.2` != "time (hours): 2"]
+
+#Recién expuestos vs expuestos tras 24h
+DEE_2_vs_24<-DEE[ , DEE$`characteristics_ch1.2` != "time (hours): 0"]
+
+print("Número de muestras DEE (0 vs 2)")
+table(pData(DEE_0_vs_2)$`characteristics_ch1.2`)
+
+print("Número de muestras DEE (0 vs 24)")
+table(pData(DEE_0_vs_24)$`characteristics_ch1.2`)
+
+print("Número de muestras DEE (2 vs 24)")
+table(pData(DEE_2_vs_24)$`characteristics_ch1.2`)
+```
+
+```{r}
+library(limma)
+#7.ANÁLISIS DE EXPRESIÓN DIFERENCIAL
+#0 VS 2
+
+#Matriz de diseño
+designMatrix_0_vs_2<-model.matrix(~ pData(DEE_0_vs_2)$'time (hours):ch1', pData(DEE_0_vs_2))
+designMatrix_0_vs_2
+
+#Estimación del modelo
+fit_0_vs_2<-lmFit(object = DEE_0_vs_2, design = designMatrix_0_vs_2)
+efit_0_vs_2<-eBayes(fit_0_vs_2)
+class(efit_0_vs_2)
+
+#Selección de genes diferencialmente expresados
+topTable_0_vs_2<-topTable(fit = efit_0_vs_2, number = Inf, coef = 2, adjust = "fdr")
+head(topTable_0_vs_2)
+
+
+#Genero una nueva topTable que solo contenga la información de los genes significativos
+topTable_0_vs_2_sign<-topTable_0_vs_2[topTable_0_vs_2$P.Value < 0.05 , ]
+
+#Guardo la tabla generada en la carpeta 'Resultados -> ds1 -> Tablas_ds1':
+write.table(topTable_0_vs_2_sign, file = "./Resultados/ds1/Tablas_ds1/topTableSign_0_vs_2.csv", sep = ",", row.names = FALSE)
+
+```
+
+```{r}
+topTable_0_vs_2[1:6, 31:36]
+```
+
+```{r}
+library(ggplot2)
+library(ggrepel)
+
+#VOLCANO PLOT
+lauras_volcano <- function(topTable_0_vs_2, title = "", fct = c(1, 2), xlim = c(-3.5, 3.5)) {
+	df <- data.frame(pval = topTable_0_vs_2$P.Value, 
+	                 fc = topTable_0_vs_2$logFC, 
+	                 label = rownames(topTable_0_vs_2))
+	df$cat <- "nc"
+	df$cat[ abs(df$pval) < 0.05 ] <- "pval"
+	df$cat[ abs(df$fc) > fct[1] ] <- "fc"
+	df$cat[ abs(df$fc) > fct[1] & abs(df$pval) < 0.05 ] <- "fc&pval"
+
+	ggplot(df, aes(fc, -log10(pval), color = cat)) + 
+		geom_point() +
+		geom_hline(yintercept = -log10(0.05), color = "darkgray", size=1, linetype="dotted") +
+		geom_vline(xintercept = c(-fct[1], fct[1]), color = "darkgray", size=1, linetype="dotted") +
+		geom_vline(xintercept = c(-fct[2], fct[2]), color = "red", size=1, linetype="dashed") +
+		theme_bw() + 
+		ylab("-log10(nominal p-value)") +
+		xlab("log(Fold Change)") +
+		theme(legend.position = "none") +
+		scale_color_manual(values = c("nc" = "lightgray", "fc&pval" = "gold", "pval" = "tomato", "fc" = "royalblue")) +
+		ggtitle(title) +
+		geom_text_repel(data = df[abs(df$fc) >= fct[2] & abs(df$pval)< 0.05, ], aes(label = label), color = "black") + 
+		scale_x_continuous(limits = xlim)
+}
+```
+
+```{r}
+#Volcano plot 0 vs 2
+lauras_volcano(topTable_0_vs_2, "Comparing non-exposed with 2h post-exposure (ds1)", fct = c(1, 2.35))
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras_ds1'
+png("./Resultados/ds1/Figuras_ds1/volcanoplot_0_vs_2.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_volcano(topTable_0_vs_2, "Comparing non-exposed with 2h post-exposure (ds1)", fct = c(1, 2.35))
+dev.off()
+```
+
+```{r}
+library(limma)
+
+#7.ANÁLISIS DE EXPRESIÓN DIFERENCIAL
+#0 VS 24
+
+#Matriz de diseño
+designMatrix_0_vs_24<-model.matrix(~ pData(DEE_0_vs_24)$'time (hours):ch1', pData(DEE_0_vs_24))
+designMatrix_0_vs_24
+
+#Estimación del modelo
+fit_0_vs_24<-lmFit(object = DEE_0_vs_24, design = designMatrix_0_vs_24)
+efit_0_vs_24<-eBayes(fit_0_vs_24)
+class(efit_0_vs_24)
+
+#Selección de genes diferencialmente expresados
+topTable_0_vs_24<-topTable(fit = efit_0_vs_24, number = Inf, coef = 2, adjust = "fdr")
+head(topTable_0_vs_24)
+
+
+#Genero una nueva topTable que solo contenga la información de los genes significativos
+topTable_0_vs_24_sign<-topTable_0_vs_24[topTable_0_vs_24$P.Value < 0.05 , ]
+
+#Guardo la tabla generada en la carpeta 'Resultados -> ds1 -> Tablas_ds1':
+write.table(topTable_0_vs_24_sign, file = "./Resultados/ds1/Tablas_ds1/topTableSign_0_vs_24.csv", sep = ",", row.names = FALSE)
+```
+
+```{r}
+topTable_0_vs_24[1:6, 31:36]
+```
+
+
+```{r}
+#Volcano plot 0 vs 24
+lauras_volcano(topTable_0_vs_24, "Comparing non-exposed with 24h post-exposure (ds1)", fct = c(1, 2.35))
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras_ds1'
+png("./Resultados/ds1/Figuras_ds1/volcanoplot_0_vs_24.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_volcano(topTable_0_vs_24, "Comparing non-exposed with 24h post-exposure (ds1)", fct = c(1, 2.35))
+dev.off()
+```
+
+```{r}
+#7.ANÁLISIS DE EXPRESIÓN DIFERENCIAL
+#2 VS 24
+
+#Matriz de diseño
+designMatrix_2_vs_24<-model.matrix(~ pData(DEE_2_vs_24)$'time (hours):ch1', pData(DEE_2_vs_24))
+designMatrix_2_vs_24
+
+#Estimación del modelo
+fit_2_vs_24<-lmFit(object = DEE_2_vs_24, design = designMatrix_2_vs_24)
+efit_2_vs_24<-eBayes(fit_2_vs_24)
+class(efit_2_vs_24)
+
+#Selección de genes diferencialmente expresados
+topTable_2_vs_24<-topTable(fit = efit_2_vs_24, number = Inf, coef = 2, adjust = "fdr")
+head(topTable_2_vs_24)
+
+
+#Genero una nueva topTable que solo contenga la información de los genes significativos
+topTable_2_vs_24_sign<-topTable_2_vs_24[topTable_2_vs_24$P.Value < 0.05 , ]
+
+#Guardo la tabla generada en la carpeta 'Resultados -> ds1 -> Tablas_ds1':
+write.table(topTable_2_vs_24_sign, file = "./Resultados/ds1/Tablas_ds1/topTableSign_2_vs_24.csv", sep = ",", row.names = FALSE)
+```
+
+```{r}
+topTable_2_vs_24[1:6, 31:36]
+```
+
+```{r}
+#Volcano plot 2 vs 24
+lauras_volcano(topTable_2_vs_24, "Comparing 2h post-exposure with 24h post-exposure (ds1)", fct = c(1, 2.35))
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras_ds1'
+png("./Resultados/ds1/Figuras_ds1/volcanoplot_2_vs_24.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_volcano(topTable_2_vs_24, "Comparing 2h post-exposure with 24h post-exposure (ds1)", fct = c(1, 2.35))
+dev.off()
+```
+
+```{r}
+#8.Comparaciones múltiples
+#DIAGRAMA DE VENN p-valor < 0.05
+library(grid)
+grid.newpage()
+
+library(VennDiagram)
+
+a1 <- rownames(topTable_0_vs_2)[ topTable_0_vs_2$P.Value < 0.05 ]
+a2 <- rownames(topTable_0_vs_24)[ topTable_0_vs_24$P.Value < 0.05 ]
+a3 <- rownames(topTable_2_vs_24)[ topTable_2_vs_24$P.Value < 0.05 ]
+
+draw.triple.venn(
+	area1 = length(a1),
+	area2 = length(a2),
+	area3 = length(a3),
+	n12 = length(intersect(a1, a2)),
+	n23 = length(intersect(a2, a3)),
+	n13 = length(intersect(a1, a3)),
+	n123 = length(intersect(intersect(a1, a2), a3)),
+	col = "blue", 
+	fill = c("deepskyblue", "turquoise1", "dodgerblue2")
+)
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras_ds1'
+png("./Resultados/ds1/Figuras_ds1/venndiagram_005_ds1.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+draw.triple.venn(
+	area1 = length(a1),
+	area2 = length(a2),
+	area3 = length(a3),
+	n12 = length(intersect(a1, a2)),
+	n23 = length(intersect(a2, a3)),
+	n13 = length(intersect(a1, a3)),
+	n123 = length(intersect(intersect(a1, a2), a3)),
+	col = "blue", 
+	fill = c("deepskyblue", "turquoise1", "dodgerblue2")
+)
+dev.off()
+```
+
+```{r}
+#DIAGRAMA DE VENN p-valor < 0.01
+grid.newpage()
+
+library(VennDiagram)
+
+a1_0.01 <- rownames(topTable_0_vs_2)[ topTable_0_vs_2$P.Value < 0.01 ]
+a2_0.01 <- rownames(topTable_0_vs_24)[ topTable_0_vs_24$P.Value < 0.01 ]
+a3_0.01 <- rownames(topTable_2_vs_24)[ topTable_2_vs_24$P.Value < 0.01 ]
+
+draw.triple.venn(
+	area1 = length(a1_0.01),
+	area2 = length(a2_0.01),
+	area3 = length(a3_0.01),
+	n12 = length(intersect(a1_0.01, a2_0.01)),
+	n23 = length(intersect(a2_0.01, a3_0.01)),
+	n13 = length(intersect(a1_0.01, a3_0.01)),
+	n123 = length(intersect(intersect(a1_0.01, a2_0.01), a3_0.01)),
+	col = "magenta", 
+	fill = c("pink", "orchid1", "hotpink")
+)
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds1 -> Figuras_ds1'
+png("./Resultados/ds1/Figuras_ds1/venndiagram_001_ds1.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+draw.triple.venn(
+	area1 = length(a1_0.01),
+	area2 = length(a2_0.01),
+	area3 = length(a3_0.01),
+	n12 = length(intersect(a1_0.01, a2_0.01)),
+	n23 = length(intersect(a2_0.01, a3_0.01)),
+	n13 = length(intersect(a1_0.01, a3_0.01)),
+	n123 = length(intersect(intersect(a1_0.01, a2_0.01), a3_0.01)),
+	col = "magenta", 
+	fill = c("pink", "orchid1", "hotpink")
+)
+dev.off()
+```
+
+```{r}
+library(dplyr)
+#9.Genes en comun
+#Comparaciones 0vs2 y 0vs24
+genes_0vs2_0vs24<-intersect(rownames(topTable_0_vs_2[topTable_0_vs_2$P.Value < 0.05,]), rownames(topTable_0_vs_24[topTable_0_vs_24$P.Value < 0.05,]))
+length(genes_0vs2_0vs24)
+
+#Comparaciones 0vs2 y 2vs24
+genes_0vs2_2vs24<-intersect(rownames(topTable_0_vs_2[topTable_0_vs_2$P.Value < 0.05,]), rownames(topTable_2_vs_24[topTable_2_vs_24$P.Value < 0.05,]))
+length(genes_0vs2_2vs24)
+
+#Comparaciones 0vs24 y 2vs24
+genes_0vs24_2vs24<-intersect(rownames(topTable_0_vs_24[topTable_0_vs_24$P.Value < 0.05,]), rownames(topTable_2_vs_24[topTable_2_vs_24$P.Value < 0.05,]))
+length(genes_0vs24_2vs24)
+
+#Comparaciones 0vs2, 0vs24 y 2vs24
+genes_0vs2_0vs24_2vs24<-intersect(intersect(rownames(topTable_0_vs_2[topTable_0_vs_2$P.Value < 0.05,]), rownames(topTable_0_vs_24[topTable_0_vs_24$P.Value < 0.05,])), rownames(topTable_2_vs_24[topTable_2_vs_24$P.Value < 0.05,])) 
+length(genes_0vs2_0vs24_2vs24)
+```
+
+
+```{r}
+#10.Significado biológico de los resultados
+
+signGenes_ds1 <- data.frame(
+	ID = c(a1, a2, a3),
+	selection = c(
+		rep("a1", length(a1)),
+		rep("a2", length(a2)),
+		rep("a3", length(a3))
+	)
+)
+signGenes_ds1$GENE <- fData(DEE)[signGenes_ds1$ID, "ILMN_Gene"]
+signGenes_ds1 <- signGenes_ds1[, c(3, 2)]
+
+write.table(signGenes_ds1[signGenes_ds1$selection == "a1", "GENE", drop=FALSE], file="./Resultados/ds1/Tablas_ds1/ds1_0v2.txt", row.names=FALSE, quote=FALSE)
+write.table(signGenes_ds1[signGenes_ds1$selection == "a2", "GENE", drop=FALSE], file="./Resultados/ds1/Tablas_ds1/ds1_0v24.txt", row.names=FALSE, quote=FALSE)
+write.table(signGenes_ds1[signGenes_ds1$selection == "a3", "GENE", drop=FALSE], file="./Resultados/ds1/Tablas_ds1/ds1_2v24.txt", row.names=FALSE, quote=FALSE)
+```
+
+
+
+
+**ANALISIS DE EXPRESIÓN DIFERENCIAL CON EL SEGUNDO DATASET**
+
+```{r}
+#1. Descarga del conjunto de datos con el que vamos a trabajar
+gse137019<-getGEO('GSE137019', GSEMatrix = TRUE)
+class(gse137019) #lista
+length(gse137019)
+eset_data_2<-gse137019[[1]] #selecciono el primer elemento de la lista
+eset_data_2
+```
+
+```{r}
+head(exprs(eset_data_2)) #De esta forma se descarga un ExpresionSet sin datos de expresión
+```
+
+```{r}
+head(pData(eset_data_2))
+```
+
+
+
+```{r}
+#1. Generación del Expression Set con el que vamos a trabajar
+options(stringsAsFactors = FALSE)
+#eset_data_2 <- getGEO("GSE137019") #Descarga un dataset sin expresión
+
+
+#En la carpeta GSE137019_RAW están las tablas de expresión para cada una de las tres (x2 condiciones) muestras. Al nombre les hemos añadido "clean" y "polluted" para saber cuales son controles y cuales son casos. Estos ficheros los hemos descargado a mano de GEO.
+
+# ¿Cómo los cargamos?
+# La función "list.files" toma como argumento una ruta a una carpeta del ordenador y lista su contenido. Podemos iterar sobre ese resultado para cargar su contenido.
+
+ds2 <- lapply(list.files("GSE137019_RAW/"), function(file_name) {
+	# Usamos el lapply para iterar sobre el vector de nombres de ficheros
+	# La variable "file_name" tiene el nombre del fichero a cargar. Del nombre
+	# podemos sacar el GEO-ID (aka, GSM4065445) y si la muestra es caso o
+	# control ("clean" o "polluted"). ¿Cómo? abusando de la función "strsplit".
+	sample <- strsplit(file_name, "_")[[1]][1]
+	type <- strsplit(strsplit(file_name, "_")[[1]][4], "\\.")[[1]][4]
+	# Creamos la ruta hacia el fichero a cargar y para lo que usamos "paste0"
+	# que concatena la carpeta "GSE137019_RAW" con el nombre del fichero 
+	# (file_name). No hace falta descomprimir los ficheros porque R es capaz de
+	# leer "tablas" de ficheros .gz, .tar, .zip...
+	table <- read.delim(paste0("GSE137019_RAW/", file_name), header = TRUE)
+	# Devolvemos cada unas de las 3 partes: nombre, caso/control, tabla (entera)
+	list("sample" = sample, "type" = type, "table" = table)
+})
+
+# En ds2 tenemos una lista con 6 listas. Cada una de las sub-listas tiene 3
+# elementos: el nombre de la muestra, el tipo de muestra y la tabla de 
+# expresión.
+
+# Vamos a crear el ExpresionSet:
+# 1. Necesiamos una matriz de expresión que tenga: genes en sus filas y
+#    muestras en sus columnas.
+#    - Usando lapply podemos seleccionar la columna TPM (o FPKM) de cada una
+#      de las tablas que se encuentran en ds2.
+#    - Usando do.call con cbind, podemos concatenar esas tablas de TPM de cada
+#      una de las muestras en una matriz
+#    - Como ya tenemos una matriz, podemos asignar a sus filas los nombres de 
+#      los genes de la tabla de expresión de la primera muestra en ds2
+#    - A esa misma matriz podemos asignar los nombres de las muestras en las 
+#      columnas desde ds2 (usando el contenido de "sample" de cada una de las
+#      sublistas)
+
+exprs <- do.call(cbind, lapply(ds2, function(tbl) {
+	tbl$table[ , "TPM"]
+}))
+colnames(exprs) <- sapply(ds2, "[[", "sample")
+rownames(exprs) <- ds2[[1]]$table$gene_id
+
+# 2. También necesitamos una tabla de "feature-data" (descripción de las 
+#    características o genes). Para ello, accedemos a la "tabla" que hemos 
+#    cargado anteriormente de la muestra 1, y obtenemos el nombre de los genes,
+#    sus transcritos asociados y un par de medidas más (logitud del gen y su
+#    logitud efectiva).
+#    - Una vez creada la tabla, le asignamos los "genes" como nombres de fila.
+
+fd <- ds2[[1]]$table[ , c("gene_id", "transcript_id.s.", "length", "effective_length") ]
+rownames(fd) <- fd$gene_id
+
+# 3. Finalmente necesitamos una tabla de "phenotipic-data". Para ello usaremos
+#    el "tipo" de muestra que tenemos almacenado en ds2. Podemos asignar
+#    los nombres de las muestras (también de ds2) como nombre de fila.
+
+pd <- data.frame(
+	sample = colnames(exprs),
+	type = sapply(ds2, "[[", "type")
+)
+rownames(pd) <- pd$sample
+
+# Con los tres elementos (matriz de expresión, f-data y p-data) podemos
+# crear el ExpresionSet. Solo falta convertir el f-data y el p-data a 
+# AnnotatedDataFrame, que podemos hacerlo al crear el ExpresionSet.
+
+eset_data_2 <- ExpressionSet(exprs, AnnotatedDataFrame(pd), AnnotatedDataFrame(fd))
+eset_data_2
+```
+
+```{r}
+#2. Control de calidad de los datos crudos: no son datos crudos
+#3. Normalizacion: Los datos ya están normalizados
+#Compruebo que los datos están normalizados:
+set.seed(321)
+sel_genes_azar_2 <- sample(featureNames(eset_data_2), size = 15)
+data.frame(N = seq(length(sel_genes_azar_2)), ID_genes = sel_genes_azar_2)
+
+par(mfrow = c(3, 5))
+for( ID in sel_genes_azar_2 ) {
+	hist(exprs(eset_data_2)[ID, ], main = ID)
+}
+par(mfrow = c(1,1))
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds2 -> Figuras_ds2'
+png("./Resultados/ds2/Figuras_ds2/histogramas_expresion_ds2.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+par(mfrow = c(3,5))
+for( ID in sel_genes_azar_2 ) {
+	hist(exprs(eset_data_2)[ID, ], main = ID)
+}
+dev.off()
+```
+
+```{r}
+#Como los datos no son lo esperado realizo una primera selección de genes
+gene_sum <- rowSums(exprs(eset_data_2))
+table(gene_sum > 0)
+eset_data_2_red <- eset_data_2[names(gene_sum[which(gene_sum > 0)]), ]
+eset_data_2_red
+```
+
+```{r}
+#Repito la comprobación de la normalización de los datos para ver si el resultado es más favorable tras la selección de genes
+set.seed(321)
+sel_genes_azar_2_red <- sample(featureNames(eset_data_2_red), size = 15)
+data.frame(N = seq(length(sel_genes_azar_2_red)), ID_genes = sel_genes_azar_2_red)
+
+par(mfrow = c(3, 5))
+for( ID in sel_genes_azar_2_red ) {
+	hist(exprs(eset_data_2_red)[ID, ], main = ID)
+}
+par(mfrow = c(1,1))
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds2 -> Figuras_ds2'
+png("./Resultados/ds2/Figuras_ds2/histogramas_expresion_ds2_rep.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+par(mfrow = c(3,5))
+for( ID in sel_genes_azar_2_red ) {
+	hist(exprs(eset_data_2_red)[ID, ], main = ID)
+}
+dev.off()
+```
+
+
+```{r}
+#Diagrama de caja múltiple
+boxplot(exprs(eset_data_2_red), 
+        cex.axis = 0.5, 
+        las = 2, 
+        main = "Boxplot for arrays intensity (ds2)",
+        col = c(rep("red", 3), 
+                rep("blue", 3)))
+```
+
+Hay valores de expresión muy altos a los que podríamos considerar outliers.
+
+Utilizamos 'ggplot' para generar un boxplot que nos aporte más información (función 'lauras boxplot' generada para el ds1):
+
+```{r}
+#Boxplot
+library("reshape2")
+
+lauras_boxplot(eset_data_2_red, cond = "type", lims = c(-2, 10)) + 
+	ggtitle("Boxplot for arrays intensity (ds2)")
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds2 -> Figuras_ds2'
+png("./Resultados/ds2/Figuras_ds2/boxplot_ds2.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_boxplot(eset_data_2_red, cond = "type", lims = c(-2, 10)) + 
+	ggtitle("Boxplot for arrays intensity (ds2)")
+dev.off()
+```
+
+En ambas condiciones el individuo 5 (correspondiente a las muestras 'GSM4065447' y 'GSM4065450') difiere respecto al resto.
+
+
+```{r}
+#4. Control de calidad de los datos normalizados
+sum(is.na(exprs(eset_data_2_red))) #¿Hay valores perdidos en los datos de expresion?
+na<-do.call(rbind, lapply(seq(nrow(exprs(eset_data_2_red))), function(i) {
+  data.frame(i=i, na_sum=sum(is.na(exprs(eset_data_2_red)[i, ])))
+}))
+head(na)
+table(na$na_sum)
+
+#Realizamos un analisis de componentes principales
+pca2<-prcomp(t(exprs(eset_data_2_red)))
+```
+
+```{r}
+head(pData(eset_data_2_red))
+```
+
+
+
+```{r}
+#PCA
+df2_pc1_pc2<-data.frame(pca2$x[ , c(1,2)]) #genero un data frame con los dos primeros PC
+rownames(df2_pc1_pc2)<-rownames(pca2$x)
+df2_pc1_pc2
+
+df2_pc1_pc2$classe <- pData(eset_data_2_red)[rownames(df2_pc1_pc2), "type"]
+
+plot(df2_pc1_pc2$PC1, 
+     df2_pc1_pc2$PC2,
+     col = ifelse(df2_pc1_pc2$classe == "clean", "green2", "magenta"),
+     pch = 19,
+     main = "Análisis de Componentes Principales (ds2)",
+     xlab = "PC1",
+     ylab = "PC2")
+abline(h=0, col = "darkgray")
+abline(v=0, col = "darkgray")
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds2 -> Figuras_ds2'
+png("./Resultados/ds2/Figuras_ds2/PCA_ds2.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+plot(df2_pc1_pc2$PC1, 
+     df2_pc1_pc2$PC2,
+     col = ifelse(df2_pc1_pc2$classe == "clean", "green2", "magenta"),
+     pch = 19,
+     main = "Análisis de Componentes Principales (ds2)",
+     xlab = "PC1",
+     ylab = "PC2")
+abline(h=0, col = "darkgray")
+abline(v=0, col = "darkgray")
+dev.off()
+```
+
+
+```{r}
+#5.Detección de los genes más variables
+#Calculo la desviación estándar:
+sds2<-apply(eset_data_2_red, 1, sd)
+
+#Ordeno los genes de mayor a menor SD:
+sds_ordenados2<-sort(sds2)
+
+#Genero el gráfico
+plot(1:length(sds_ordenados2), 
+     sds_ordenados2, 
+     main = "Distribution of variability for all genes (ds2)",
+     cex.main = 1.5,
+     col = "darkorchid1", 
+     sub = "Vertical navy-blue line represents 95% percentil", 
+     cex.sub = 0.5,
+     xlab = "Gene index (from least to most variable)", 
+     ylab = "Standard deviation",
+     cex.lab = 1)
+abline(v = length(sds2)*0.95, col = "navy", lty = 1, lwd = 2) #percentil 95
+abline(h = 1, col = "red", lty = 2, lwd = 2) #var 1
+abline(v = length(which( sds_ordenados2 < 1 )), col = "red", lty = 2, lwd = 2) #var 1
+text(x = 10000,  y = 3000, "sd = 1", col = "red")
+text(x = 19000,  y = 15000, "19576 features", col = "red", srt = 90)
+text(x = length(sds2)*0.93, "95% percentil", y = 20000, col = "navy", srt = 90)
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds2 -> Figuras_ds2'
+png("./Resultados/ds2/Figuras_ds2/distribucion_var_ds2.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+plot(1:length(sds_ordenados2), 
+     sds_ordenados2, 
+     main = "Distribution of variability for all genes (ds2)",
+     cex.main = 1.5,
+     col = "darkorchid1", 
+     sub = "Vertical navy-blue line represents 95% percentil", 
+     cex.sub = 0.5,
+     xlab = "Gene index (from least to most variable)", 
+     ylab = "Standard deviation",
+     cex.lab = 1)
+abline(v = length(sds2)*0.95, col = "navy", lty = 1, lwd = 2) #percentil 95
+abline(h = 1, col = "red", lty = 2, lwd = 2) #var 1
+abline(v = length(which( sds_ordenados2 < 1 )), col = "red", lty = 2, lwd = 2) #var 1
+text(x = 10000,  y = 3000, "sd = 1", col = "red")
+text(x = 19000,  y = 15000, "19576 features", col = "red", srt = 90)
+text(x = length(sds2)*0.93, "95% percentil", y = 20000, col = "navy", srt = 90)
+dev.off()
+```
+
+```{r}
+#6.Filtrado de los genes menos variables
+table(sds2 < 1) #Con este criterio estaríamos eliminando casi 20000 genes
+eset_data_filtrado_2<-eset_data_2_red[names(sds2)[sds2 >= 1], ] #creo el nuevo ESet
+eset_data_filtrado_2
+```
+
+```{r}
+table(pData(eset_data_filtrado_2)$type)
+```
+
+Repito el diagrama de caja múltiple con la intención de ver si el individuo 5 sigue difiriendo del resto tras el filtrado de los genes menos variables:
+
+```{r}
+#Boxplot
+library("reshape2")
+
+lauras_boxplot(eset_data_filtrado_2, cond = "type", lims = c(-2, 45)) + 
+	ggtitle("Boxplot for arrays intensity after filtering (ds2)")
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds2 -> Figuras_ds2'
+png("./Resultados/ds2/Figuras_ds2/boxplot_ds2_rep.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_boxplot(eset_data_filtrado_2, cond = "type", lims = c(-2, 45)) + 
+	ggtitle("Boxplot for arrays intensity after filtering (ds2)")
+dev.off()
+```
+
+Vemos que la expresión génica del individuo R5 (GSM4065447 y GSM4065450) se desvía del resto de individuos en ambas condiciones. 
+En este punto, consideramos realizar un análisis de sensibilidad: hacer un análisis de expresión diferencial con el individuo R5 y uno sin él.
+
+
+
+**AED con el individuo R5**
+
+```{r}
+library(limma)
+#7.ANÁLISIS DE EXPRESIÓN DIFERENCIAL
+
+#Matriz de diseño
+designMatrix_ds2<-model.matrix(~ pData(eset_data_filtrado_2)$'type', pData(eset_data_filtrado_2))
+designMatrix_ds2
+print("")
+#Estimación del modelo
+fit_ds2<-lmFit(object = eset_data_filtrado_2, design = designMatrix_ds2)
+efit_ds2<-eBayes(fit_ds2)
+class(efit_ds2)
+
+#Selección de genes diferencialmente expresados
+topTable_ds2<-topTable(fit = efit_ds2, number = Inf, coef = 2, adjust = "fdr")
+head(topTable_ds2)
+
+
+
+#Genero una nueva topTable que solo contenga la información de los genes significativos
+topTable_ds2_sign<-topTable_ds2[topTable_ds2$P.Value < 0.05 , ]
+
+#Guardo la tabla generada en la carpeta 'Resultados -> ds2 -> Tablas_ds2':
+write.table(topTable_ds2_sign, file = "./Resultados/ds2/Tablas_ds2/topTableSign_ds2.csv", sep = ",", row.names = FALSE)
+```
+
+```{r}
+topTable_ds2[1:6, 5:10]
+```
+
+```{r}
+#Volcano plot
+lauras_volcano(topTable_ds2, "Comparing clean with polluted (ds2)", fct = c(1, 2))
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds2 -> Figuras_ds2'
+png("./Resultados/ds2/Figuras_ds2/volcanoplot_ds2_conR5.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_volcano(topTable_ds2, "Comparing clean with polluted (ds2)", fct = c(1, 2))
+dev.off()
+```
+
+
+**AED sin el individuo R5**
+
+En primer lugar eliminamos las muestras correspondientes al individuo R5:
+
+```{r}
+eset_data_filtrado_2_sin_r5 <- eset_data_filtrado_2[ , 
+	c("GSM4065445", "GSM4065446", "GSM4065448", "GSM4065449")
+]
+eset_data_filtrado_2_sin_r5
+```
+
+
+Repetimos el Análisis de Expresión diferencial:
+
+```{r}
+library(limma)
+#7.ANÁLISIS DE EXPRESIÓN DIFERENCIAL
+
+#Matriz de diseño
+designMatrix_ds2_sin_r5<-model.matrix(~ pData(eset_data_filtrado_2_sin_r5)$'type', pData(eset_data_filtrado_2_sin_r5))
+designMatrix_ds2_sin_r5
+print("")
+#Estimación del modelo
+fit_ds2_sin_r5<-lmFit(object = eset_data_filtrado_2_sin_r5, design = designMatrix_ds2_sin_r5)
+efit_ds2_sin_r5<-eBayes(fit_ds2_sin_r5)
+class(efit_ds2_sin_r5)
+
+#Selección de genes diferencialmente expresados
+topTable_ds2_sin_r5<-topTable(fit = efit_ds2_sin_r5, number = Inf, coef = 2, adjust = "fdr")
+head(topTable_ds2_sin_r5)
+
+
+
+#Genero una nueva topTable que solo contenga la información de los genes significativos
+topTable_ds2_sin_r5_sign<-topTable_ds2_sin_r5[topTable_ds2_sin_r5$P.Value < 0.05 , ]
+
+#Guardo la tabla generada en la carpeta 'Resultados -> ds2 -> Tablas_ds2':
+write.table(topTable_ds2_sin_r5_sign, file = "./Resultados/ds2/Tablas_ds2/topTableSign_ds2_sin_r5.csv", sep = ",", row.names = FALSE)
+```
+
+```{r}
+topTable_ds2_sin_r5[1:6, 5:10]
+```
+
+```{r}
+#Volcano plot
+lauras_volcano(topTable_ds2_sin_r5, "Comparing clean with polluted (-R5) (ds2)", fct = c(1, 2))
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds2 -> Figuras_ds2'
+png("./Resultados/ds2/Figuras_ds2/volcanoplot_ds2_sinR5.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_volcano(topTable_ds2_sin_r5, "Comparing clean with polluted (-R5) (ds2)", fct = c(1, 2))
+dev.off()
+```
+
+Comparando ambos volcano plot obtenidos podemos ver el extraño comportamiento del individuo R5. Éste está influyendo en la expresión de los genes. Cuando eliminamos las muestras correspondientes al individuo R5 la expresión de los genes disminuye.
+
+Descartamos el uso de este data set (ds2) para continuar con el análisis y obtener conclusiones que podamos relacionar con el primer data set (ds1) (objetivo principal de este trabajo) debido al extraño comportamiento de las muestras correspondientes al individuo R5.
+
+
+
+
+Para poder desarrollar el trabajo inicialmente planteado seleccionamos un nuevo data set en sustitución de ds2.
+
+**ESTUDIO DEL TERCER DATA SET**
+
+El tercer data set procede de una publicación de GEO en la que realizan un estudio de expresión diferencial de genes procedentes de DNA de células de sangre periférica entre dos grupos: niños y adultos procedentes de una región con alto nivel de polución y niños y adultos procedentes de una región con un bajo nivel de polución. 
+
+En este caso vamos a realizar el análisis de expresión diferencial entre los genes de las muestras procedentes de los adultos.
+
+```{r}
+#1. Descarga del conjunto de datos con el que vamos a trabajar
+gse7543<-getGEO('GSE7543', GSEMatrix = TRUE)
+class(gse7543) #lista
+length(gse7543)
+eset_data_3<-gse7543[[1]] #selecciono el primer elemento de la lista
+eset_data_3
+```
+
+Pequeño estudio de los datos que vamos a utilizar:
+
+```{r}
+head(pData(eset_data_3))
+```
+
+```{r}
+head(exprs(eset_data_3))
+```
+
+Vemos que hay valores perdidos.
+
+Llama la atención que a los genes se les ha asignado por nombre valores numéricos:
+
+```{r}
+featureNames(eset_data_3)[1:10]
+```
+
+Dentro de la variable 'title' encontramos información sobre si el individuo en estudio es niño o adulto y sobre su zona de procedencia (Teplice -> Alto nivel de polución; Prachatice -> Bajo nivel de polución)
+
+```{r}
+pData(eset_data_3)$title
+```
+
+El eset_data contiene 71 muestras diferentes pertenecientes a 47 niños (divididos entre 23 niños procedentes de una zona con alto nivel de polución y otros 24 procedentes de una de baja polución) y a 24 adultos (12 de cada zona).
+
+
+
+Para facilitar el análisis vamos a sustituir los 'feature names' numéricos por nombres colocando un 'ft' delante de cada número:
+
+```{r}
+eset_data_3_c <- eset_data_3
+head(featureNames(eset_data_3_c))
+featureNames(eset_data_3_c) <- paste0("ft_", featureNames(eset_data_3_c))
+head(featureNames(eset_data_3_c))
+```
+
+
+utilizando el contenido de la variable 'title' antes mencionada vamos a generar 3 variables diferentes:
+
+- 'procedencia'
+- 'individuos'
+- 'condición'
+
+```{r}
+#Procedencia:
+pData(eset_data_3_c)$procedencia <- sapply(strsplit(pData(eset_data_3_c)$title, " "), "[[", 1)
+
+#Individuos:
+pData(eset_data_3_c)$individuos <- sapply(strsplit(pData(eset_data_3_c)$title, " "), "[[", 2)
+
+#Condición:
+pData(eset_data_3_c)$condicion <- factor(
+	ifelse(pData(eset_data_3_c)$procedencia == "Teplice", "high", "low"),
+	levels = c("high", "low")
+)
+
+table(pData(eset_data_3_c)$condicion, pData(eset_data_3_c)$individuos)
+```
+
+```{r}
+head(pData(eset_data_3_c))[ , 43:45]
+```
+
+
+Tal y como hemos visto antes, explorando los datos, hay valores perdidos:
+
+```{r}
+#Número total de valores perdidos:
+sum(is.na(exprs(eset_data_3_c)))
+
+#¿Cuántos valores perdidos hay por cada gen?
+na_per_gen <- data.frame(
+	featureNames = featureNames(eset_data_3_c),
+	NNA = rowSums(is.na(exprs(eset_data_3_c)))
+)
+
+head(na_per_gen)
+
+table(na_per_gen$NNA)
+```
+
+
+Para continuar con el análisis se eliminan los transcritos con valores perdidos:
+
+```{r}
+#Hacemos una selección de genes que no tienen valores perdidos
+genes_sin_na <- na_per_gen$featureNames[na_per_gen$NNA == 0]
+length(genes_sin_na)
+
+#Se genera un nuevo data set que no contenga valores perdidos:
+eset_data_3_c <- eset_data_3_c[genes_sin_na, ]
+eset_data_3_c
+```
+
+
+```{r}
+#2. Control de calidad de los datos crudos: no son datos crudos
+#3. Normalizacion: Los datos ya están normalizados
+#Compruebo que los datos están normalizados:
+set.seed(321)
+sel_genes_azar_3 <- sample(featureNames(eset_data_3_c), size = 15)
+data.frame(N = seq(length(sel_genes_azar_3)), ID_genes = sel_genes_azar_3)
+
+par(mfrow = c(3, 5))
+for( ID in sel_genes_azar_3 ) {
+	hist(exprs(eset_data_3_c)[ID, ], main = ID)
+}
+par(mfrow = c(1,1))
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds3 -> Figuras_ds3'
+png("./Resultados/ds3/Figuras_ds3/histogramas_expresion_ds3.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+par(mfrow = c(3, 5))
+for( ID in sel_genes_azar_3 ) {
+	hist(exprs(eset_data_3_c)[ID, ], main = ID)
+}
+dev.off()
+```
+
+Los histogramas siguen una distribución cercana a la normal.
+
+
+```{r}
+#Boxplot:
+library("reshape2")
+
+lauras_boxplot(eset_data_3_c, cond = "condicion", lims = c(-1.5, 1.5)) + 
+	ggtitle("Boxplot for arrays intensity (ds3)")
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds3 -> Figuras_ds3'
+png("./Resultados/ds3/Figuras_ds3/boxplot_ds3.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_boxplot(eset_data_3_c, cond = "condicion", lims = c(-1.5, 1.5)) + 
+	ggtitle("Boxplot for arrays intensity (ds3)")
+dev.off()
+```
+
+Vemos en la imagen anterior que las cajas son bastante similares entre individuos del mismo grupo. Quizá se observa algun individuo un poco diferente entre los adultos. Como se ha hecho en los análisis anteriores se comprobará más detenidamente en el PCA.
+
+
+```{r}
+#4. Control de calidad de los datos normalizados
+#Realizamos un analisis de componentes principales
+pca3<-prcomp(t(exprs(eset_data_3_c)))
+
+#PCA
+df3_pc1_pc2<-data.frame(pca3$x[ , c(1,2)]) #genero un data frame con los dos primeros PC
+rownames(df3_pc1_pc2)<-rownames(pca3$x)
+df3_pc1_pc2
+
+df3_pc1_pc2$classe <- pData(eset_data_3_c)[rownames(df3_pc1_pc2), "condicion"]
+
+plot(df3_pc1_pc2$PC1, 
+     df3_pc1_pc2$PC2,
+     col = ifelse(df3_pc1_pc2$classe == "high", "green2", "magenta"),
+     pch = 19,
+     main = "Análisis de Componentes Principales (ds3)",
+     xlab = "PC1",
+     ylab = "PC2")
+abline(h = 0, col = "darkgrey")
+abline(v = 0, col = "darkgrey")
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds3 -> Figuras_ds3'
+png("./Resultados/ds3/Figuras_ds3/PCA_ds3.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+plot(df3_pc1_pc2$PC1, 
+     df3_pc1_pc2$PC2,
+     col = ifelse(df3_pc1_pc2$classe == "high", "green2", "magenta"),
+     pch = 19,
+     main = "Análisis de Componentes Principales (ds3)",
+     xlab = "PC1",
+     ylab = "PC2")
+abline(h = 0, col = "darkgrey")
+abline(v = 0, col = "darkgrey")
+dev.off()
+```
+
+Las muestras se distribuyen uniformemente y no se agrupan en función de la condición experimental. No se observa, además, ninguna muestra desplazada como para plantearnos eliminarla del análisis.
+
+
+```{r}
+#5.Detección de los genes más variables
+#Calculo la desviación estándar:
+sds3<-apply(eset_data_3_c, 1, sd)
+
+#Ordeno los genes de mayor a menor SD:
+sds_ordenados3<-sort(sds3)
+
+#Genero el gráfico
+plot(1:length(sds_ordenados3), 
+     sds_ordenados3, 
+     main = "Distribution of variability for all genes (ds3)",
+     cex.main = 1.5,
+     col = "darkorchid1", 
+     sub = "Vertical navy-blue line represents 95% percentil", 
+     cex.sub = 0.5,
+     xlab = "Gene index (from least to most variable)", 
+     ylab = "Standard deviation",
+     cex.lab = 1)
+abline(v = length(sds3)*0.95, col = "navy", lty = 1, lwd = 2) #percentil 95
+abline(h = 1, col = "red", lty = 2, lwd = 1) #var 1
+abline(v = length(which( sds_ordenados3 < 1 )), col = "red", lty = 2, lwd = 1) #var 1
+text(x = 5000,  y = 1.10, "sd = 1", col = "red")
+text(x = 18000,  y = 2, "17514 features", col = "red", srt = 90)
+text(x = length(sds3)*0.93, "95% percentil", y = 1.5, col = "navy", srt = 90)
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds3 -> Figuras_ds3'
+png("./Resultados/ds3/Figuras_ds3/distribucion_var_ds3.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+plot(1:length(sds_ordenados3), 
+     sds_ordenados3, 
+     main = "Distribution of variability for all genes (ds3)",
+     cex.main = 1.5,
+     col = "darkorchid1", 
+     sub = "Vertical navy-blue line represents 95% percentil", 
+     cex.sub = 0.5,
+     xlab = "Gene index (from least to most variable)", 
+     ylab = "Standard deviation",
+     cex.lab = 1)
+abline(v = length(sds3)*0.95, col = "navy", lty = 1, lwd = 2) #percentil 95
+abline(h = 1, col = "red", lty = 2, lwd = 1) #var 1
+abline(v = length(which( sds_ordenados3 < 1 )), col = "red", lty = 2, lwd = 1) #var 1
+text(x = 5000,  y = 1.10, "sd = 1", col = "red")
+text(x = 18000,  y = 2, "17514 features", col = "red", srt = 90)
+text(x = length(sds3)*0.93, "95% percentil", y = 1.5, col = "navy", srt = 90)
+dev.off()
+```
+
+En el gráfico anterior vemos que casi todos los genes tienen una desviación estándar menor que 1.
+
+```{r}
+#6.Filtrado de los genes menos variables
+table(sds3 < 1) #Con este criterio estaríamos eliminando casi todos los genes
+#Aunque en los análisis de los datasets anteriores se ha seguido este criterio (sd < 1), para no eliminar prácticamente todos los genes, en este caso se decide continuar el análisis con todos los genes sin llevar a cabo el filtrado
+eset_data_filtrado_3<-eset_data_3_c #creo el nuevo ESet
+eset_data_filtrado_3
+```
+
+
+Por último, antes de realizar el análisis de expresión diferencial como tal, seleccionamos únicamente las muestras correspondientes a adultos para que los datos sean comparables a los de ds1.
+
+```{r}
+eset_data_3_red <- eset_data_filtrado_3[ , pData(eset_data_filtrado_3)$individuos == "parent"]
+eset_data_3_red
+```
+
+```{r}
+pData(eset_data_3_red)$individuos
+```
+
+Nos quedamos con 24 muestras de las 71 muestras iniciales.
+
+
+```{r}
+library(limma)
+#7.ANÁLISIS DE EXPRESIÓN DIFERENCIAL
+
+#Matriz de diseño
+designMatrix_ds3<-model.matrix(~ pData(eset_data_3_red)$'condicion', pData(eset_data_3_red))
+designMatrix_ds3
+print("")
+#Estimación del modelo
+fit_ds3<-lmFit(object = eset_data_3_red, design = designMatrix_ds3)
+efit_ds3<-eBayes(fit_ds3)
+class(efit_ds3)
+
+#Selección de genes diferencialmente expresados
+topTable_ds3<-topTable(fit = efit_ds3, number = Inf, coef = 2, adjust = "fdr")
+head(topTable_ds3)
+
+
+
+#Genero una nueva topTable que solo contenga la información de los genes significativos
+topTable_ds3_sign<-topTable_ds3[topTable_ds3$P.Value < 0.05 , ]
+
+#Guardo la 'topTable' en la carpeta 'Resultados -> ds3 -> Tablas_ds3':
+write.table(topTable_ds3_sign, file = "./Resultados/ds3/Tablas_ds3/topTableSign_ds3.csv", sep = ",", row.names = FALSE)
+```
+
+```{r}
+topTable_ds3[1:6, 21:26]
+```
+
+```{r}
+#Volcano plot
+lauras_volcano(topTable_ds3, "Comparing high vs low exposed samples (ds3)", 
+							 fct = c(-0.5, 0.5), 
+							 xlim=c(-1.05, 1.05)
+)
+
+
+
+#Guardo el gráfico creado en la carpeta 'Resultados -> ds3 -> Figuras_ds3'
+png("./Resultados/ds3/Figuras_ds3/volcanoplot_ds3.png", width = 1000, height = 800, res = 72, units = "px", pointsize = 12, bg = "white")
+lauras_volcano(topTable_ds3, "Comparing high vs low exposed samples (ds3)", 
+							 fct = c(-0.5, 0.5), 
+							 xlim=c(-1.05, 1.05)
+)
+dev.off()
+```
+
+
+```{r}
+#8.Significado biológico de los resultados
+
+#Generamos una lista con los genes significativos, utilizando para ello el umbral de p valor < 0.05
+signGenes_ds3 <- data.frame(
+	GENE = unique(fData(eset_data_3_red)[rownames(topTable_ds3[topTable_ds3$P.Value < 0.05, ]), "GENE_SYMBOL"])
+)
+
+#Guardo la lista de genes significativos
+write.table(signGenes_ds3, file="./Resultados/ds3/Tablas_ds3/ds3.txt", row.names=FALSE, quote=FALSE)
+
+
+head(signGenes_ds3)
+```
+
+
